@@ -24,6 +24,8 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
 
+    // todo: save poolKey to make sure we are always working with the same pool OR map poolIds to all state values
+
     // Fee multiplier
     uint256 public immutable alpha;
 
@@ -85,10 +87,15 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     function _afterInitialize(
         address,
         PoolKey calldata,
-        uint160,
-        int24
+        uint160 sqrtPriceX96,
+        int24 tick
     ) internal override returns (bytes4) {
-        revert HookNotImplemented();
+        // Save the current sqrtPrice and tick
+        extremumTick = tick;
+
+        uint256 sqrtPrice = (SCALE * uint256(sqrtPriceX96)) / Q96;
+        initialSqrtpriceScaled = sqrtPrice;
+        extremumSqrtpriceScaled = sqrtPrice;
     }
 
     function _beforeSwap(
@@ -118,8 +125,6 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         (uint160 sqrtPriceX96, int24 currentTick, , ) = stateView.getSlot0(
             poolId
         );
-
-        // todo: if tick < extremum tick -2 , reset all
 
         uint256 currentSqrtPriceScaled = (SCALE * uint256(sqrtPriceX96)) / Q96;
 
