@@ -58,9 +58,9 @@ contract NonToxicMath {
         uint256 volume1Signed = uint256(volume1 > 0 ? volume1 : -volume1);
 
         // todo: la c'est bizarre, j'ai l'impression que le scaling n'est pas homogene (vu que les sqrtPrice sont aussi scaled)
-        uint256 feePercentScaled = ((alpha *
+        uint256 feePercentScaled = (alpha *
             (((volume1Signed * SCALE * SCALE) / (2 * activeLiq)) +
-                (SCALE * sqrtpriceHistoryScaled))) / currentSqrtPriceScaled);
+                (SCALE * sqrtpriceHistoryScaled))) / currentSqrtPriceScaled;
 
         return feePercentScaled;
     }
