@@ -40,8 +40,8 @@ contract HookTest is Test {
         uint256 alpha = 1;
 
         // Deploy BOTH tokens
-        MockERC20 tokenA = new MockERC20();
-        MockERC20 tokenB = new MockERC20();
+        MockERC20 tokenA = new MockERC20("tokenA", "TA");
+        MockERC20 tokenB = new MockERC20("tokenB", "TB");
 
         // Sort tokens - currency0 must be < currency1
         if (address(tokenA) < address(tokenB)) {

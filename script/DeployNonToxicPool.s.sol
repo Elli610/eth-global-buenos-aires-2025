@@ -125,8 +125,8 @@ contract DeployNonToxicPool is Script {
         console.log("SwapRouter:", address(swapRouter));
 
         // Deploy mock tokens
-        MockERC20 tokenA = new MockERC20();
-        MockERC20 tokenB = new MockERC20();
+        MockERC20 tokenA = new MockERC20("tokenA", "TA");
+        MockERC20 tokenB = new MockERC20("tokenB", "TB");
 
         console.log("TokenA deployed at:", address(tokenA));
         console.log("TokenB deployed at:", address(tokenB));
