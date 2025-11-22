@@ -2,10 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
-import {NonToxicMath} from "../src/NonToxicMath.sol";
-
-uint256 constant Q96 = 0x1000000000000000000000000;
-uint256 constant SCALE = 1e18;
+import {NonToxicMath, Q96, SCALE} from "../src/NonToxicMath.sol";
 
 contract HookTest is Test {
     NonToxicMath public hook;

@@ -8,7 +8,7 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
-import {NonToxicMath, SCALE} from "./NonToxicMath.sol";
+import {NonToxicMath, SCALE, Q96} from "./NonToxicMath.sol";
 import {IStateView} from "lib/v4-periphery/src/interfaces/IStateView.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 
@@ -20,9 +20,9 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     uint256 public immutable alpha;
 
     // Last sqrt price with a drawback > 1 tick
-    uint256 public initialSqrtprice;
+    uint256 public initialSqrtpriceScaled;
     // Max or min sqrt price since the last drawback > 1 tick
-    uint256 public extremumSqrtprice;
+    uint256 public extremumSqrtpriceScaled;
 
     IStateView public stateView;
 
@@ -96,13 +96,19 @@ contract NonToxicPool is BaseHook, NonToxicMath {
 
         PoolId poolId = key.toId();
 
-        (uint160 sqrtPrice, int24 currentTick, , ) = stateView.getSlot0(poolId);
+        (uint160 sqrtPriceX96, int24 currentTick, , ) = stateView.getSlot0(
+            poolId
+        );
 
         // todo: if tick < last tick -2 , reset all
 
-        uint256 currentSqrtPrice = sqrtPrice;
+        uint256 currentSqrtPriceScaled = (SCALE * uint256(sqrtPriceX96)) / Q96;
 
-        int256 volume1 = preComputeVolume1();
+        int256 volume1 = preComputeVolume1(
+            params.zeroForOne,
+            params.amountSpecified,
+            uint256(sqrtPriceX96) / Q96
+        );
 
         uint256 activeLiq = uint256(stateView.getLiquidity(poolId));
 
@@ -110,15 +116,17 @@ contract NonToxicPool is BaseHook, NonToxicMath {
             volume1,
             alpha,
             activeLiq,
-            initialSqrtprice,
-            extremumSqrtprice,
-            currentSqrtPrice
+            initialSqrtpriceScaled,
+            extremumSqrtpriceScaled,
+            currentSqrtPriceScaled
         );
 
         uint256 newPoolFee = (newPoolFeePercentScaled * 1_000_000) / SCALE;
 
-
-        poolManager.updateDynamicLPFee(key, uint24(newPoolFee > 1_000_000 ? 1_000_000 : newPoolFee));
+        poolManager.updateDynamicLPFee(
+            key,
+            uint24(newPoolFee > 1_000_000 ? 1_000_000 : newPoolFee)
+        );
 
         return (
             BaseHook.beforeSwap.selector,

@@ -4,10 +4,19 @@ pragma solidity ^0.8.13;
 // import {console} from "forge-std/Test.sol";
 
 uint256 constant SCALE = 1e18;
+uint256 constant Q96 = 0x1000000000000000000000000;
 
 contract NonToxicMath {
-    function preComputeVolume1() internal returns (int256 volume1) {
-        revert("todo: preComputeVolume1");
+    function preComputeVolume1(
+        bool zeroForOne,
+        int256 amountSpecified,
+        uint256 sqrtPrice
+    ) internal returns (int256 volume1) {
+        if (zeroForOne && amountSpecified > 0) return -amountSpecified;
+        if (zeroForOne && amountSpecified < 0) return amountSpecified;
+
+        // (zeroForOne && amountSpecified < 0) || (!zeroForOne && amountSpecified > 0)
+        return amountSpecified * int256(sqrtPrice) ** 2;
     }
 
     function computeFees(
@@ -66,5 +75,4 @@ contract NonToxicMath {
 
         return feePercentScaled;
     }
-
 }
