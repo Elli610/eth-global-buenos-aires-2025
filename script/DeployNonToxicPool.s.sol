@@ -201,7 +201,10 @@ contract DeployNonToxicPool is Script {
         addLiquidity(deployer);
 
         // Perform a test swap
-        performSwap(deployer);
+        performSwap(deployer, SWAP_AMOUNT);
+
+        // Performe another swap in the same direction
+        performSwap(deployer, SWAP_AMOUNT * 2);
 
         vm.stopBroadcast();
 
@@ -314,25 +317,25 @@ contract DeployNonToxicPool is Script {
     }
 
     /// @notice Perform a test swap on the pool
-    function performSwap(address deployer) internal {
+    function performSwap(address deployer, uint256 amount) internal {
         console.log("\n=== Performing Test Swap ===");
 
         // Mint tokens for swap
-        token0.mint(deployer, SWAP_AMOUNT);
+        token0.mint(deployer, amount);
 
         console.log("Token balances before swap:");
         console.log("Token0:", token0.balanceOf(deployer));
         console.log("Token1:", token1.balanceOf(deployer));
 
         // Approve swap router to spend tokens
-        token0.approve(address(swapRouter), SWAP_AMOUNT);
+        token0.approve(address(swapRouter), amount);
 
         console.log("Approved SwapRouter to spend token0");
 
         // Set up swap parameters
         SwapParams memory params = SwapParams({
             zeroForOne: true, // Swapping token0 for token1
-            amountSpecified: -int256(SWAP_AMOUNT), // Negative for exact input
+            amountSpecified: -int256(amount), // Negative for exact input
             sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1 // No price limit
         });
 
@@ -341,7 +344,7 @@ contract DeployNonToxicPool is Script {
             .TestSettings({takeClaims: false, settleUsingBurn: false});
 
         console.log("Executing swap...");
-        console.log("Swapping", SWAP_AMOUNT, "token0 for token1");
+        console.log("Swapping", amount, "token0 for token1");
 
         // Execute swap
         BalanceDelta delta = swapRouter.swap(

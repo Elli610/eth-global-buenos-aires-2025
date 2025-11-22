@@ -23,9 +23,9 @@ contract NonToxicMath {
         int256 volume1,
         uint256 alpha,
         uint256 activeLiq,
-        uint256 initialSqrtprice_,
-        uint256 extremumSqrtprice_,
-        uint256 currentSqrtPrice
+        uint256 initialSqrtpriceScaled_,
+        uint256 extremumSqrtpriceScaled_,
+        uint256 currentSqrtPriceScaled
     ) public pure returns (uint256) {
         // uint256 alpha = 2; // >= 1
         // uint256 activeLiq = 123456789123456789; // todo: handle activeLiq = 0
@@ -36,28 +36,31 @@ contract NonToxicMath {
         // uint256 extremumSqrtprice_;
         // uint256 currentSqrtPrice;
 
-        uint256 sqrtpriceHistory;
+        // tricky: au deploiment cas possible -> extremum > sqrtInit > currentSqrtPrice ou extremum < sqrtInit < currentSqrtPrice
+
+        uint256 sqrtpriceHistoryScaled;
         // Swap  dans la tendance ?
-        // if extremumSqrtprice_ > initialSqrtprice_ tendance is up, else down
         if (
-            (extremumSqrtprice_ > initialSqrtprice_ && volume1 > 0) ||
-            (extremumSqrtprice_ < initialSqrtprice_ && volume1 < 0)
+            (currentSqrtPriceScaled > initialSqrtpriceScaled_ && volume1 > 0) ||
+            (currentSqrtPriceScaled < initialSqrtpriceScaled_ && volume1 < 0)
         ) {
-            sqrtpriceHistory = initialSqrtprice_ > currentSqrtPrice
-                ? initialSqrtprice_ - currentSqrtPrice
-                : currentSqrtPrice - initialSqrtprice_;
+            sqrtpriceHistoryScaled = initialSqrtpriceScaled_ >
+                currentSqrtPriceScaled
+                ? initialSqrtpriceScaled_ - currentSqrtPriceScaled
+                : currentSqrtPriceScaled - initialSqrtpriceScaled_;
         } else {
-            sqrtpriceHistory = extremumSqrtprice_ > currentSqrtPrice
-                ? extremumSqrtprice_ - currentSqrtPrice
-                : currentSqrtPrice - extremumSqrtprice_;
+            sqrtpriceHistoryScaled = extremumSqrtpriceScaled_ >
+                currentSqrtPriceScaled
+                ? extremumSqrtpriceScaled_ - currentSqrtPriceScaled
+                : currentSqrtPriceScaled - extremumSqrtpriceScaled_;
         }
 
         uint256 volume1Signed = uint256(volume1 > 0 ? volume1 : -volume1);
 
         // todo: la c'est bizarre, j'ai l'impression que le scaling n'est pas homogene (vu que les sqrtPrice sont aussi scaled)
         uint256 feePercentScaled = ((alpha *
-            (((volume1Signed * SCALE) / (2 * activeLiq)) +
-                (SCALE * sqrtpriceHistory))) / currentSqrtPrice);
+            (((volume1Signed * SCALE * SCALE) / (2 * activeLiq)) +
+                (SCALE * sqrtpriceHistoryScaled))) / currentSqrtPriceScaled);
 
         return feePercentScaled;
     }

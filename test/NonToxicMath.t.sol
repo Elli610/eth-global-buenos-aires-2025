@@ -29,6 +29,7 @@ contract HookTest is Test {
         uint256 activeLiq = 6930192433872;
         uint256 initialSqrtPrice = (SCALE * 2370713100028836327518828066696) /
             Q96;
+
         uint256 maxSqrtPrice = (SCALE * 2370713100028836327518828066696) / Q96;
         uint256 currentSqrtPrice = (SCALE * 2400895714879232902503166069071) /
             Q96;

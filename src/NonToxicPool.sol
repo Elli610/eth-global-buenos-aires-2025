@@ -24,16 +24,21 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
 
+    // todo: we would be more precise by using sqrtPrice to compute the tick drawback compared to extremum
+    //       (so we could accept more efficients values like 1.5 tick since we need at least 1 tick drawback
+    //       + a security buffer so mm can have time to adjust their positions)
+    uint24 public constant WANTED_DRAWBACK = 9_000; // 1.5 tick spacing (1e6)
+
     // todo: save poolKey to make sure we are always working with the same pool OR map poolIds to all state values
 
     // Fee multiplier
     uint256 public immutable alpha;
 
     // Last sqrt price with a drawback > 1 tick
-    uint256 public initialSqrtpriceScaled;
+    uint256 public initialSqrtPriceScaled;
     // Max or min sqrt price since the last drawback > 1 tick
-    uint256 public extremumSqrtpriceScaled;
-    // todo: I guess we can get rid of it since this one matches the tick for extremumSqrtpriceScaled (so can be recomputed)
+    uint256 public extremumSqrtPriceScaled;
+    // todo: I guess we can get rid of it since this one matches the tick for extremumSqrtPriceScaled (so can be recomputed)
     int24 public extremumTick;
 
     IStateView public stateView;
@@ -94,8 +99,10 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         extremumTick = tick;
 
         uint256 sqrtPrice = (SCALE * uint256(sqrtPriceX96)) / Q96;
-        initialSqrtpriceScaled = sqrtPrice;
-        extremumSqrtpriceScaled = sqrtPrice;
+        initialSqrtPriceScaled = sqrtPrice;
+        extremumSqrtPriceScaled = sqrtPrice;
+
+        return (BaseHook.afterInitialize.selector);
     }
 
     function _beforeSwap(
@@ -140,8 +147,8 @@ contract NonToxicPool is BaseHook, NonToxicMath {
             volume1,
             alpha,
             activeLiq,
-            initialSqrtpriceScaled,
-            extremumSqrtpriceScaled,
+            initialSqrtPriceScaled,
+            extremumSqrtPriceScaled,
             currentSqrtPriceScaled
         );
 
@@ -161,11 +168,39 @@ contract NonToxicPool is BaseHook, NonToxicMath {
 
     function _afterSwap(
         address,
-        PoolKey calldata,
+        PoolKey calldata key,
         SwapParams calldata,
         BalanceDelta,
         bytes calldata
     ) internal override returns (bytes4, int128) {
-        revert HookNotImplemented();
+        // Identify the trend
+        bool isUpTrend = extremumSqrtPriceScaled > initialSqrtPriceScaled;
+
+        (uint160 sqrtPriceX96, int24 currentTick, , ) = stateView.getSlot0(
+            key.toId()
+        );
+        uint256 currentSqrtPriceScaled = (SCALE * uint256(sqrtPriceX96)) / Q96;
+
+        uint256 delta = uint256(
+            currentSqrtPriceScaled > extremumSqrtPriceScaled
+                ? currentSqrtPriceScaled - extremumSqrtPriceScaled
+                : extremumSqrtPriceScaled - currentSqrtPriceScaled
+        );
+
+        if (delta / 2e6 > WANTED_DRAWBACK * currentSqrtPriceScaled) {
+            initialSqrtPriceScaled = extremumSqrtPriceScaled;
+            extremumSqrtPriceScaled = currentSqrtPriceScaled;
+
+            return (BaseHook.afterSwap.selector, 0);
+        }
+
+        if (
+            (isUpTrend && currentTick > extremumTick) ||
+            (!isUpTrend && currentTick < extremumTick)
+        ) {
+            extremumTick = currentTick;
+        }
+
+        return (BaseHook.afterSwap.selector, 0);
     }
 }
