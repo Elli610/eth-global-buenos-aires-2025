@@ -54,21 +54,7 @@ contract NonToxicMath {
 
         uint256 volume1Signed = uint256(volume1 > 0 ? volume1 : -volume1);
 
-        // console.log(
-        //     "(volume1Signed * 1e18) / (2 * activeLiq)",
-        //     (volume1Signed * 1e18) / (2 * activeLiq)
-        // );
-        // console.log(
-        //     "(volume1Signed * 1e18 * 1e18) / (2 * activeLiq * currentSqrtPrice)",
-        //     (volume1Signed * 1e18 * 1e18) / (2 * activeLiq * currentSqrtPrice)
-        // );
-        // console.log("sqrtpriceHistory", sqrtpriceHistory);
-
-        // console.log(
-        //     "sqrtpriceHistory / currentSqrtPrice",
-        //     (sqrtpriceHistory * 1e18) / currentSqrtPrice
-        // );
-
+        // todo: la c'est bizarre, j'ai l'impression que le scaling n'est pas homogene (vu que les sqrtPrice sont aussi scaled)
         uint256 feePercentScaled = ((alpha *
             (((volume1Signed * SCALE) / (2 * activeLiq)) +
                 (SCALE * sqrtpriceHistory))) / currentSqrtPrice);

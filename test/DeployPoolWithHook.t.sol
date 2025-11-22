@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {NonToxicPool} from "../src/NonToxicPool.sol";
+import {NonToxicPool, HOOK_FLAGS} from "../src/NonToxicPool.sol";
+import {Q96} from "../src/NonToxicMath.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager.sol";
@@ -11,8 +12,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockERC20} from "./MockERC20.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
-
-uint256 constant Q96 = 0x1000000000000000000000000;
 
 contract HookTest is Test {
     using LPFeeLibrary for uint24;
@@ -36,6 +35,10 @@ contract HookTest is Test {
             address(0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e)
         );
 
+        address stateView = address(0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227);
+
+        uint256 alpha = 1;
+
         // Deploy BOTH tokens
         MockERC20 tokenA = new MockERC20();
         MockERC20 tokenB = new MockERC20();
@@ -50,11 +53,13 @@ contract HookTest is Test {
         }
 
         // Deploy our hook with the proper flags
-        address hookAddress = address(
-            uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG)
-        );
+        address hookAddress = address(HOOK_FLAGS);
 
-        deployCodeTo("NonToxicPool", abi.encode(poolManager), hookAddress);
+        deployCodeTo(
+            "NonToxicPool",
+            abi.encode(poolManager, stateView, alpha),
+            hookAddress
+        );
         hook = NonToxicPool(hookAddress);
     }
 

@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
@@ -11,6 +12,13 @@ import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {NonToxicMath, SCALE, Q96} from "./NonToxicMath.sol";
 import {IStateView} from "lib/v4-periphery/src/interfaces/IStateView.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+
+uint160 constant HOOK_FLAGS = uint160(
+    Hooks.BEFORE_INITIALIZE_FLAG |
+        Hooks.BEFORE_SWAP_FLAG |
+        Hooks.AFTER_INITIALIZE_FLAG |
+        Hooks.AFTER_SWAP_FLAG
+);
 
 contract NonToxicPool is BaseHook, NonToxicMath {
     using LPFeeLibrary for uint24;
@@ -23,6 +31,8 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     uint256 public initialSqrtpriceScaled;
     // Max or min sqrt price since the last drawback > 1 tick
     uint256 public extremumSqrtpriceScaled;
+    // todo: I guess we can get rid of it since this one matches the tick for extremumSqrtpriceScaled (so can be recomputed)
+    int24 public extremumTick;
 
     IStateView public stateView;
 
@@ -46,13 +56,13 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         return
             Hooks.Permissions({
                 beforeInitialize: true,
-                afterInitialize: false,
+                afterInitialize: true,
                 beforeAddLiquidity: false,
                 afterAddLiquidity: false,
                 beforeRemoveLiquidity: false,
                 afterRemoveLiquidity: false,
                 beforeSwap: true,
-                afterSwap: false,
+                afterSwap: true,
                 beforeDonate: false,
                 afterDonate: false,
                 beforeSwapReturnDelta: false,
@@ -70,6 +80,15 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         // Check that the attached pool has dynamic fee
         if (!key.fee.isDynamicFee()) revert MustUseDynamicFee();
         return this.beforeInitialize.selector;
+    }
+
+    function _afterInitialize(
+        address,
+        PoolKey calldata,
+        uint160,
+        int24
+    ) internal override returns (bytes4) {
+        revert HookNotImplemented();
     }
 
     function _beforeSwap(
@@ -100,7 +119,7 @@ contract NonToxicPool is BaseHook, NonToxicMath {
             poolId
         );
 
-        // todo: if tick < last tick -2 , reset all
+        // todo: if tick < extremum tick -2 , reset all
 
         uint256 currentSqrtPriceScaled = (SCALE * uint256(sqrtPriceX96)) / Q96;
 
@@ -135,5 +154,13 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         );
     }
 
-    // todo: after swap, update sqrt prices
+    function _afterSwap(
+        address,
+        PoolKey calldata,
+        SwapParams calldata,
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, int128) {
+        revert HookNotImplemented();
+    }
 }

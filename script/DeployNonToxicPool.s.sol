@@ -11,7 +11,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IStateView} from "lib/v4-periphery/src/interfaces/IStateView.sol";
-import {NonToxicPool} from "../src/NonToxicPool.sol";
+import {NonToxicPool, HOOK_FLAGS} from "../src/NonToxicPool.sol";
 import {MockERC20} from "../test/MockERC20.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
@@ -86,10 +86,6 @@ contract DeployNonToxicPool is Script {
 
     // Swap parameters
     uint256 public constant SWAP_AMOUNT = 10 ether; // Amount to swap
-
-    // Hook flags we need: BEFORE_INITIALIZE_FLAG | BEFORE_SWAP_FLAG
-    uint160 public constant HOOK_FLAGS =
-        uint160(Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_SWAP_FLAG);
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
