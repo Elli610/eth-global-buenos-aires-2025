@@ -353,7 +353,7 @@ def plotAndDisplay(
         label="Fixed Spread",
     )
 
-    ax1.set_xlabel("Block (Last 1000)", fontsize=13, fontweight="bold")
+    ax1.set_xlabel("Blocks", fontsize=13, fontweight="bold")
     ax1.set_ylabel("Price", fontsize=13, fontweight="bold")
     ax1.set_title(
         "Fixed vs Variable Fees: Price with Bid/Ask Spreads (Last 1000 Blocks)",
