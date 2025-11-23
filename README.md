@@ -139,12 +139,19 @@ This ensures only meaningful market reversals reset the directional tracking.
 ## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/antitoxicity-hook.git
-
 # Install dependencies
-cd antitoxicity-hook
 forge install
+
+# Run the demo script
+forge script script/DeployNonToxicPool.s.sol \
+  --rpc-url $RPC_URL \
+  --broadcast \
+  --verify \
+  --via-ir \
+  -vvv \
+  --tc DeployNonToxicPool \
+  --private-key $PRIVATE_KEY \
+  --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 
