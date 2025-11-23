@@ -12,6 +12,10 @@ import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
 import {NonToxicMath, SCALE, Q96} from "./NonToxicMath.sol";
 import {IStateView} from "lib/v4-periphery/src/interfaces/IStateView.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
+import {IPositionManager} from "lib/v4-periphery/src/interfaces/IPositionManager.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 uint160 constant HOOK_FLAGS = uint160(
     Hooks.BEFORE_INITIALIZE_FLAG |
@@ -20,16 +24,24 @@ uint160 constant HOOK_FLAGS = uint160(
         Hooks.AFTER_SWAP_FLAG
 );
 
+struct Position {
+    int24 tickUpper;
+    int24 tickLower;
+    uint256 liquidity;
+}
+
+// todo: save poolKey to make sure we are always working with the same pool OR map poolIds to all state values
 contract NonToxicPool is BaseHook, NonToxicMath {
     using LPFeeLibrary for uint24;
     using PoolIdLibrary for PoolKey;
 
-    // todo: we would be more precise by using sqrtPrice to compute the tick drawback compared to extremum
-    //       (so we could accept more efficients values like 1.5 tick since we need at least 1 tick drawback
-    //       + a security buffer so mm can have time to adjust their positions)
-    uint24 public constant WANTED_DRAWBACK = 9_000; // 1.5 tick spacing (1e6)
+    uint24 public constant WANTED_DRAWBACK = 9_000; // 1.5 tick spacing
 
-    // todo: save poolKey to make sure we are always working with the same pool OR map poolIds to all state values
+    IStateView public immutable stateView;
+    IPositionManager public immutable positionManager;
+
+    IERC20 public immutable token0;
+    IERC20 public immutable token1;
 
     // Fee multiplier
     uint256 public immutable alpha;
@@ -41,17 +53,24 @@ contract NonToxicPool is BaseHook, NonToxicMath {
     // todo: I guess we can get rid of it since this one matches the tick for extremumSqrtPriceScaled (so can be recomputed)
     int24 public extremumTick;
 
-    IStateView public stateView;
+    Position public position1;
+    Position public position2;
 
     error MustUseDynamicFee();
 
     constructor(
+        IPositionManager _positionManager,
         IPoolManager _poolManager,
+        IERC20 _token0,
+        IERC20 _token1,
         IStateView _stateView,
         uint256 _alpha
     ) BaseHook(_poolManager) {
         alpha = _alpha;
+        token0 = _token0;
+        token1 = _token1;
         stateView = _stateView;
+        positionManager = _positionManager;
     }
 
     function getHookPermissions()
@@ -202,5 +221,109 @@ contract NonToxicPool is BaseHook, NonToxicMath {
         }
 
         return (BaseHook.afterSwap.selector, 0);
+    }
+
+    // Vault logic
+
+    function rebalance(
+        address,
+        PoolKey calldata key,
+        SwapParams calldata,
+        BalanceDelta,
+        bytes calldata,
+        uint256 currentSqrtPriceScaled
+    ) internal {
+        // Let's do it the dummy way
+
+        // remove all positions
+        burnLiquidity(key, position1, 1, position1.liquidity, 0, 0);
+        burnLiquidity(key, position2, 2, position2.liquidity, 0, 0);
+
+        uint256 balance0 = token0.balanceOf(address(this));
+        uint256 balance1 = token1.balanceOf(address(this));
+
+        // compute wallet repartition
+
+        // value of balance 1 expressed in token 0
+        uint256 balance1In0 = balance1 * currentSqrtPriceScaled ** 2;
+
+        uint256 ratioScaled = balance1 / balance0;
+
+        // Todo: Best thing to do would be doing some research and simulations to know if its better
+        //       to rebalance at each swap doesn't matter the volume, liq, etc or rebalance in precise circomstances
+        //       might also be useless to do and the diff is non-relevant
+
+        // For today: rebalance at each swap
+        // todo
+    }
+
+    function mintLiquidity(
+        PoolKey calldata poolKey,
+        Position memory position,
+        uint8 positionIndex,
+        uint256 liquidityDelta,
+        uint256 amount0Max,
+        uint256 amount1Max
+    ) internal {
+        // Prepare mint parameters
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.MINT_POSITION),
+            uint8(Actions.SETTLE_PAIR)
+        );
+
+        bytes[] memory params = new bytes[](2);
+
+        // MINT_POSITION parameters
+        params[0] = abi.encode(
+            poolKey,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity,
+            amount0Max,
+            amount1Max,
+            address(this), // recipient
+            bytes("") // hookData
+        );
+
+        // SETTLE_PAIR parameters
+        params[1] = abi.encode(
+            Currency.wrap(address(token0)),
+            Currency.wrap(address(token1))
+        );
+
+        // Add liquidity through PositionManager
+        positionManager.modifyLiquidities(
+            abi.encode(actions, params),
+            block.timestamp // deadline
+        );
+
+        if (positionIndex == 1) {
+            position1.liquidity += liquidityDelta;
+            return;
+        }
+        if (positionIndex == 2) {
+            position2.liquidity += liquidityDelta;
+            return;
+        }
+
+        revert("Invalid position index");
+    }
+
+    function burnLiquidity(
+        PoolKey calldata poolKey,
+        Position memory position,
+        uint8 positionIndex,
+        uint256 liquidityDelta,
+        uint256 amount0Max, // ??
+        uint256 amount1Max // ??
+    ) internal {
+        revert("todo");
+
+        if (positionIndex == 1) {
+            position1.liquidity -= liquidityDelta;
+        }
+        if (positionIndex == 2) {
+            position2.liquidity -= liquidityDelta;
+        }
     }
 }

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "forge-std/Script.sol";
+import {Script, console2} from "forge-std/Script.sol";
 import {console} from "forge-std/Test.sol";
-
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -16,11 +15,10 @@ import {MockERC20} from "../test/MockERC20.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {Actions} from "lib/v4-periphery/src/libraries/Actions.sol";
-import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/src/test/PoolSwapTest.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
 /// @notice Helper contract for CREATE2 deployment
 contract Create2Factory {
@@ -146,7 +144,14 @@ contract DeployNonToxicPool is Script {
         // Get the bytecode for the hook
         bytes memory hookBytecode = abi.encodePacked(
             type(NonToxicPool).creationCode,
-            abi.encode(poolManager, stateView, ALPHA)
+            abi.encode(
+                positionManager,
+                poolManager,
+                token0,
+                token1,
+                stateView,
+                ALPHA
+            )
         );
 
         // Mine for the correct salt

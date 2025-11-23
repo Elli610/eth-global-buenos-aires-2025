@@ -15,3 +15,6 @@ docs/
 .env
 
 .DS_Store
+
+
+backtest/venv/
