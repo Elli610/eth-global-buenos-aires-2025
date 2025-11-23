@@ -85,20 +85,106 @@ contract DeployNonToxicPool is Script {
     // Swap parameters
     uint256 public constant SWAP_AMOUNT = 10 ether; // Amount to swap
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // LOGGING HELPERS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function logHeader(string memory title) internal pure {
+        console.log("");
+        console.log(
+            "======================================================================="
+        );
+        console.log(string.concat("  ", title));
+        console.log(
+            "======================================================================="
+        );
+    }
+
+    function logSection(string memory title) internal pure {
+        console.log("");
+        console.log(string.concat("----- ", title, " -----"));
+    }
+
+    function logSuccess(string memory message) internal pure {
+        console.log(string.concat("[OK] ", message));
+    }
+
+    function logInfo(string memory label, string memory value) internal pure {
+        console.log(string.concat("  * ", label, ": ", value));
+    }
+
+    function logInfo(string memory label, address value) internal pure {
+        console.log(string.concat("  * ", label, ":"));
+        console.log(string.concat("    ", vm.toString(value)));
+    }
+
+    function logInfo(string memory label, uint256 value) internal pure {
+        console.log(string.concat("  * ", label, ": ", vm.toString(value)));
+    }
+
+    function logInfo(string memory label, int24 value) internal pure {
+        console.log(
+            string.concat("  * ", label, ": ", vm.toString(int256(value)))
+        );
+    }
+
+    function logBytes32(string memory label, bytes32 value) internal pure {
+        console.log(string.concat("  * ", label, ":"));
+        console.log(string.concat("    0x", vm.toString(value)));
+    }
+
+    function logProgress(
+        string memory message,
+        uint256 current,
+        uint256 total
+    ) internal pure {
+        console.log(
+            string.concat(
+                "[...] ",
+                message,
+                " (",
+                vm.toString(current),
+                "/",
+                vm.toString(total),
+                ")"
+            )
+        );
+    }
+
+    function logWarning(string memory message) internal pure {
+        console.log(string.concat("[WARN] ", message));
+    }
+
+    function logDivider() internal pure {
+        console.log(
+            "-----------------------------------------------------------------------"
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MAIN DEPLOYMENT
+    // ═══════════════════════════════════════════════════════════════════════
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
-        console.log("Deploying from address:", deployer);
-        console.log("Deployer balance:", deployer.balance);
+        logHeader("NONTOXIC POOL DEPLOYMENT");
+
+        logSection("Deployer Configuration");
+        logInfo("Address", deployer);
+        logInfo("Balance", deployer.balance);
 
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy the CREATE2 factory first
+        logSection("Deploying CREATE2 Factory");
         factory = new Create2Factory();
-        console.log("Create2Factory deployed at:", address(factory));
+        logSuccess("Create2Factory deployed");
+        logInfo("Address", address(factory));
 
         // Set up mainnet contract addresses
+        logSection("Connecting to Protocol Contracts");
         poolManager = IPoolManager(
             address(0xE03A1074c86CFeDd5C142C4F04F1a1536e203543) // Sepolia PoolManager
         );
@@ -107,27 +193,29 @@ contract DeployNonToxicPool is Script {
             address(0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4) // Sepolia PositionManager
         );
 
-        // Deploy StateView or use existing deployment
         stateView = IStateView(
             address(0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C)
         );
 
         permit2 = IPermit2(address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
 
-        // Deploy or use existing PoolSwapTest
         swapRouter = new PoolSwapTest(poolManager);
 
-        console.log("PoolManager:", address(poolManager));
-        console.log("PositionManager:", address(positionManager));
-        console.log("StateView:", address(stateView));
-        console.log("SwapRouter:", address(swapRouter));
+        logSuccess("Connected to protocol contracts");
+        logInfo("PoolManager", address(poolManager));
+        logInfo("PositionManager", address(positionManager));
+        logInfo("StateView", address(stateView));
+        logInfo("Permit2", address(permit2));
+        logInfo("SwapRouter", address(swapRouter));
 
         // Deploy mock tokens
+        logSection("Deploying Mock Tokens");
         MockERC20 tokenA = new MockERC20("tokenA", "TA");
         MockERC20 tokenB = new MockERC20("tokenB", "TB");
 
-        console.log("TokenA deployed at:", address(tokenA));
-        console.log("TokenB deployed at:", address(tokenB));
+        logSuccess("Mock tokens deployed");
+        logInfo("TokenA", address(tokenA));
+        logInfo("TokenB", address(tokenB));
 
         // Sort tokens - currency0 must be < currency1
         if (address(tokenA) < address(tokenB)) {
@@ -138,10 +226,12 @@ contract DeployNonToxicPool is Script {
             token1 = tokenA;
         }
 
-        console.log("Token0 (sorted):", address(token0));
-        console.log("Token1 (sorted):", address(token1));
+        logSection("Token Sorting");
+        logInfo("Token0 (lower address)", address(token0));
+        logInfo("Token1 (higher address)", address(token1));
 
         // Get the bytecode for the hook
+        logSection("Preparing Hook Deployment");
         bytes memory hookBytecode = abi.encodePacked(
             type(NonToxicPool).creationCode,
             abi.encode(
@@ -154,29 +244,39 @@ contract DeployNonToxicPool is Script {
             )
         );
 
+        bytes32 bytecodeHash = keccak256(hookBytecode);
+        logBytes32("Bytecode Hash", bytecodeHash);
+        logInfo("Target Hook Flags", HOOK_FLAGS);
+
         // Mine for the correct salt
+        console.log("");
+        console.log("[MINING] Searching for valid salt...");
         bytes32 salt = mineSalt(address(factory), hookBytecode);
-        console.log("Found salt:");
-        console.logBytes32(salt);
+        logSuccess("Valid salt found!");
+        logBytes32("Salt", salt);
 
         // Deploy the hook using CREATE2
+        logSection("Deploying NonToxicPool Hook");
         address hookAddress = factory.deploy(hookBytecode, salt);
         hook = NonToxicPool(hookAddress);
 
-        console.log("NonToxicPool deployed at:", address(hook));
-        console.log("Hook alpha parameter:", hook.alpha());
+        logSuccess("NonToxicPool hook deployed");
+        logInfo("Address", address(hook));
+        logInfo("Alpha parameter", hook.alpha());
 
         // Verify the hook address has the correct flags
         uint160 hookAddressInt = uint160(address(hook));
         uint160 actualFlags = hookAddressInt & Hooks.ALL_HOOK_MASK;
 
-        console.log("Expected flags:", HOOK_FLAGS);
-        console.log("Actual flags:", actualFlags);
+        logSection("Hook Verification");
+        logInfo("Expected Flags", HOOK_FLAGS);
+        logInfo("Actual Flags", actualFlags);
 
         require(
             actualFlags == HOOK_FLAGS,
             "Hook address does not have required flags"
         );
+        logSuccess("Hook flags verified successfully");
 
         // Set up dynamic fee (0x800000 is the dynamic fee flag)
         uint24 dynamicFee = 0x800000;
@@ -190,17 +290,16 @@ contract DeployNonToxicPool is Script {
             hooks: hook
         });
 
-        console.log("Initializing pool...");
-        console.log("Currency0:", Currency.unwrap(poolKey.currency0));
-        console.log("Currency1:", Currency.unwrap(poolKey.currency1));
-        console.log("Fee:", poolKey.fee);
-        console.log("TickSpacing:", poolKey.tickSpacing);
-        console.log("Initial sqrtPrice:", INITIAL_SQRT_PRICE);
+        logSection("Initializing Pool");
+        logInfo("Currency0", Currency.unwrap(poolKey.currency0));
+        logInfo("Currency1", Currency.unwrap(poolKey.currency1));
+        logInfo("Fee (Dynamic)", poolKey.fee);
+        logInfo("Tick Spacing", poolKey.tickSpacing);
+        logInfo("Initial Sqrt Price", INITIAL_SQRT_PRICE);
 
         // Initialize the pool
         poolManager.initialize(poolKey, INITIAL_SQRT_PRICE);
-
-        console.log("Pool initialized successfully!");
+        logSuccess("Pool initialized successfully");
 
         // Add liquidity around the current tick
         addLiquidity(deployer);
@@ -208,7 +307,7 @@ contract DeployNonToxicPool is Script {
         // Perform a test swap
         performSwap(deployer, SWAP_AMOUNT);
 
-        // Performe another swap in the same direction
+        // Perform another swap in the same direction
         performSwap(deployer, SWAP_AMOUNT * 2);
 
         vm.stopBroadcast();
@@ -216,38 +315,51 @@ contract DeployNonToxicPool is Script {
         PoolId poolId = poolKey.toId();
 
         // Log deployment info for verification
-        console.log("\n=== Deployment Summary ===");
-        console.log("PoolId:");
-        console2.logBytes32(PoolId.unwrap(poolId));
-        console.log("Factory:", address(factory));
-        console.log("Hook:", address(hook));
-        console.log("Token0:", address(token0));
-        console.log("Token1:", address(token1));
-        console.log("PoolManager:", address(poolManager));
-        console.log("PositionManager:", address(positionManager));
-        console.log("StateView:", address(stateView));
-        console.log("SwapRouter:", address(swapRouter));
-        console.log("Alpha:", ALPHA);
+        logHeader("DEPLOYMENT SUMMARY");
+
+        logBytes32("Pool ID", PoolId.unwrap(poolId));
+        console.log("");
+
+        logSection("Contract Addresses");
+        logInfo("Factory", address(factory));
+        logInfo("Hook", address(hook));
+        logInfo("Token0", address(token0));
+        logInfo("Token1", address(token1));
+        logInfo("PoolManager", address(poolManager));
+        logInfo("PositionManager", address(positionManager));
+        logInfo("StateView", address(stateView));
+        logInfo("SwapRouter", address(swapRouter));
+
+        console.log("");
+        logSection("Configuration");
+        logInfo("Alpha", ALPHA);
+        logInfo("Initial Price", INITIAL_SQRT_PRICE);
+        logInfo("Tick Spacing", poolKey.tickSpacing);
+
+        console.log("");
+        logSuccess("Deployment completed successfully!");
+        logDivider();
     }
 
     /// @notice Add liquidity to the pool around the current tick
     function addLiquidity(address deployer) internal {
-        console.log("\n=== Adding Liquidity ===");
+        logHeader("ADDING LIQUIDITY");
 
-        // Mint tokens to deployer
+        logSection("Minting Tokens");
         token0.mint(deployer, LIQUIDITY_AMOUNT);
         token1.mint(deployer, LIQUIDITY_AMOUNT);
 
-        console.log("Minted tokens:");
-        console.log("Token0 balance:", token0.balanceOf(deployer));
-        console.log("Token1 balance:", token1.balanceOf(deployer));
+        logSuccess("Tokens minted");
+        logInfo("Token0 Balance", token0.balanceOf(deployer));
+        logInfo("Token1 Balance", token1.balanceOf(deployer));
 
         // Approve PositionManager to spend tokens
+        logSection("Setting Approvals");
+
         // First approve Permit2 to spend tokens
         token0.approve(address(permit2), type(uint256).max);
         token1.approve(address(permit2), type(uint256).max);
-
-        console.log("Approved Permit2 to spend tokens");
+        logSuccess("Permit2 approved for both tokens");
 
         // Then use Permit2 to approve PositionManager
         permit2.approve(
@@ -263,11 +375,9 @@ contract DeployNonToxicPool is Script {
             type(uint160).max,
             type(uint48).max // No expiration
         );
-
-        console.log("Approved PositionManager through Permit2");
+        logSuccess("PositionManager approved through Permit2");
 
         // Calculate tick range around current price
-        // sqrtPrice of 2288668768328953335596493506431 corresponds to tick 0 (approximately)
         int24 currentTick = 0; // Approximate tick for 1:1 price
 
         // Align ticks to tickSpacing
@@ -277,9 +387,10 @@ contract DeployNonToxicPool is Script {
         int24 tickUpper = ((currentTick + TICK_RANGE) / tickSpacing) *
             tickSpacing;
 
-        console.log("Current tick (approx):", currentTick);
-        console.log("Tick lower:", tickLower);
-        console.log("Tick upper:", tickUpper);
+        logSection("Position Configuration");
+        logInfo("Current Tick (approx)", currentTick);
+        logInfo("Tick Lower", tickLower);
+        logInfo("Tick Upper", tickUpper);
 
         // Prepare mint parameters
         bytes memory actions = abi.encodePacked(
@@ -307,7 +418,8 @@ contract DeployNonToxicPool is Script {
             Currency.wrap(address(token1))
         );
 
-        console.log("Calling modifyLiquidities...");
+        logSection("Executing Liquidity Addition");
+        console.log("[...] Calling modifyLiquidities...");
 
         // Add liquidity through PositionManager
         positionManager.modifyLiquidities(
@@ -315,27 +427,30 @@ contract DeployNonToxicPool is Script {
             block.timestamp + 60 // deadline
         );
 
-        console.log("Liquidity added successfully!");
-        console.log("Position range:");
-        console.log("tickLower", tickLower);
-        console.log("tickUpper", tickUpper);
+        logSuccess("Liquidity added successfully");
+        logInfo("Liquidity Amount", LIQUIDITY_AMOUNT);
+        logDivider();
     }
 
     /// @notice Perform a test swap on the pool
     function performSwap(address deployer, uint256 amount) internal {
-        console.log("\n=== Performing Test Swap ===");
+        logHeader("EXECUTING SWAP");
 
+        logSection("Preparing Swap");
         // Mint tokens for swap
         token0.mint(deployer, amount);
+        logSuccess("Tokens minted for swap");
+        logInfo("Swap Amount", amount);
 
-        console.log("Token balances before swap:");
-        console.log("Token0:", token0.balanceOf(deployer));
-        console.log("Token1:", token1.balanceOf(deployer));
+        logSection("Balances Before Swap");
+        uint256 token0Before = token0.balanceOf(deployer);
+        uint256 token1Before = token1.balanceOf(deployer);
+        logInfo("Token0", token0Before);
+        logInfo("Token1", token1Before);
 
         // Approve swap router to spend tokens
         token0.approve(address(swapRouter), amount);
-
-        console.log("Approved SwapRouter to spend token0");
+        logSuccess("SwapRouter approved");
 
         // Set up swap parameters
         SwapParams memory params = SwapParams({
@@ -348,8 +463,14 @@ contract DeployNonToxicPool is Script {
         PoolSwapTest.TestSettings memory testSettings = PoolSwapTest
             .TestSettings({takeClaims: false, settleUsingBurn: false});
 
-        console.log("Executing swap...");
-        console.log("Swapping", amount, "token0 for token1");
+        logSection("Executing Swap");
+        console.log(
+            string.concat(
+                "[...] Swapping ",
+                vm.toString(amount),
+                " token0 for token1..."
+            )
+        );
 
         // Execute swap
         BalanceDelta delta = swapRouter.swap(
@@ -359,15 +480,37 @@ contract DeployNonToxicPool is Script {
             bytes("") // hookData
         );
 
-        console.log("Swap completed!");
-        console.log("Token balances after swap:");
-        console.log("Token0:", token0.balanceOf(deployer));
-        console.log("Token1:", token1.balanceOf(deployer));
+        logSuccess("Swap completed successfully");
 
-        // Log the delta
-        console.log("Balance delta:");
-        console.log("Amount0:", delta.amount0());
-        console.log("Amount1:", delta.amount1());
+        logSection("Balances After Swap");
+        uint256 token0After = token0.balanceOf(deployer);
+        uint256 token1After = token1.balanceOf(deployer);
+        logInfo("Token0", token0After);
+        logInfo("Token1", token1After);
+
+        logSection("Balance Deltas");
+        console.log(
+            string.concat("  * Amount0: ", vm.toString(delta.amount0()))
+        );
+        console.log(
+            string.concat("  * Amount1: ", vm.toString(delta.amount1()))
+        );
+
+        logSection("Net Changes");
+        console.log(
+            string.concat(
+                "  * Token0 Change: ",
+                vm.toString(int256(token0After) - int256(token0Before))
+            )
+        );
+        console.log(
+            string.concat(
+                "  * Token1 Change: ",
+                vm.toString(int256(token1After) - int256(token1Before))
+            )
+        );
+
+        logDivider();
     }
 
     /// @notice Mine for a salt that will produce a hook address with the desired flags
@@ -379,11 +522,6 @@ contract DeployNonToxicPool is Script {
         bytes memory bytecode
     ) internal view returns (bytes32) {
         bytes32 bytecodeHash = keccak256(bytecode);
-
-        console.log("Mining for salt with factory:", factoryAddr);
-        console.log("Bytecode hash:");
-        console.logBytes32(bytecodeHash);
-        console.log("Target flags:", HOOK_FLAGS);
 
         // Mine for a salt
         for (uint256 i = 0; i < 100_000_000; i++) {
@@ -400,14 +538,20 @@ contract DeployNonToxicPool is Script {
 
             // Check if this address has the required hook flags
             if (addressFlags == HOOK_FLAGS) {
-                console.log("Found valid salt after", i, "iterations");
-                console.log("Predicted address:", predictedAddress);
+                console.log(
+                    string.concat(
+                        "  [OK] Found after ",
+                        vm.toString(i),
+                        " iterations"
+                    )
+                );
+                logInfo("Predicted Address", predictedAddress);
                 return salt;
             }
 
             // Log progress every million iterations
             if (i % 1_000_000 == 0 && i > 0) {
-                console.log("Checked", i, "salts...");
+                logProgress("Mining", i, 100_000_000);
             }
         }
 
