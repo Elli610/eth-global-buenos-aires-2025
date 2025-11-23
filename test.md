@@ -54,7 +54,7 @@ The following charts demonstrate the hook's performance using real onchain data 
 
 #### Bid/Ask Spread Dynamics
 
-![Fixed vs Variable Fees: Bid/Ask Spreads](./charts/1_anti_toxicity.png)
+<img width="1236" height="660" alt="image" src="https://github.com/user-attachments/assets/966e2c8a-ba60-4ae4-9570-ae7a8c9c467c" />
 
 This chart shows how the variable fee mechanism creates dynamic bid/ask spreads that adapt to market conditions:
 - **Blue line**: Actual price movement
@@ -68,7 +68,8 @@ Key observations:
 
 #### Fee Rate Evolution
 
-![Fixed vs Variable Fees Over Time](./charts/2_fees_comparison.png)
+<img width="1236" height="666" alt="image" src="https://github.com/user-attachments/assets/ae57b77f-913f-419b-b79e-918a223d74b2" />
+
 
 This chart illustrates how variable fees adapt to market toxicity:
 - **Blue line**: Fixed fee baseline (0.05%)
@@ -82,7 +83,8 @@ Key observations:
 
 #### Cumulative Profitability
 
-![Profitability: Fixed vs Variable Fees vs Holding](./charts/3_profitability_comparison.png)
+<img width="1236" height="670" alt="image" src="https://github.com/user-attachments/assets/203ab513-3bd7-4217-b717-f6f208040a3b" />
+
 
 This chart demonstrates the economic impact across different strategies:
 - **Blue line**: Fixed fee P&L (barely profitable, ~0.2%)
