@@ -50,7 +50,15 @@ $$\mathrm{fee\%} = \frac{\alpha}{\mathrm{currentSqrtPrice}} \times \left[\frac{\
 
 ### Real-World Backtesting Results
 
-The following charts demonstrate the hook's performance using real onchain data over 130,000+ blocks:
+The following charts demonstrate the hook's performance using real onchain data from the [Uniswap V3 WETH/USDC (fee: 500)](https://arbiscan.io/address/0xc6962004f452be9203591991d15f6b388e09e8d0) pool on Arbitrum One.
+
+**Backtest Details:**
+- **Data source**: Arbitrum One blocks 401,412,426 to 403,076,967 (130,931 rows)
+- **Simplification**: Only `deltaSqrtPrice` between block start and end is used. When multiple swaps occur within a single block, they are treated as one consolidated swap.
+- **Fee impact**: This simplification means the fees generated in the backtest are **lower than what would actually occur** in production (where each swap would be charged separately), but results remain close enough to reality for meaningful analysis.
+- **Volume considerations**: The backtest emulates the hook over swaps that occurred on a pool with fixed fees. In actual deployment with variable fees, trading volumes would differ—lower fees would attract more volume, while higher fees would reduce volume during toxic periods.
+- **Gas costs**: Transaction gas costs have not been included in the P&L calculations.
+- **Purpose**: These simplifications are acceptable for hackathon demonstration purposes and provide valid directional insights into the hook's effectiveness.
 
 #### Bid/Ask Spread Dynamics
 
@@ -70,7 +78,6 @@ Key observations:
 
 <img width="1236" height="666" alt="image" src="https://github.com/user-attachments/assets/ae57b77f-913f-419b-b79e-918a223d74b2" />
 
-
 This chart illustrates how variable fees adapt to market toxicity:
 - **Blue line**: Fixed fee baseline (0.05%)
 - **Green dashed line**: Ask fee (variable) for buying pressure
@@ -84,7 +91,6 @@ Key observations:
 #### Cumulative Profitability
 
 <img width="1236" height="670" alt="image" src="https://github.com/user-attachments/assets/203ab513-3bd7-4217-b717-f6f208040a3b" />
-
 
 This chart demonstrates the economic impact across different strategies:
 - **Blue line**: Fixed fee P&L (barely profitable, ~0.2%)
@@ -154,10 +160,9 @@ forge script script/DeployNonToxicPool.s.sol \
   --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
-
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](./LICENSE.md) file for details.
 
 ## Contact
 
